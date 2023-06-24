@@ -1,4 +1,4 @@
-
+#!/usr/bin/sh
 if [ $# -eq 2 ]
 then
     DIRECTORY=$(dirname $1)
