@@ -10,3 +10,7 @@ ${OUTPUT}: *.o
 *.o: *.c
 	${CROSS_COMPILE}gcc -c *.c -o ${OUTPUT}.o
 		
+
+clean:
+	rm -rf *.o ${OUTPUT}
+
