@@ -11,6 +11,10 @@
 #include <unistd.h>
 #include <string.h>
 
+#define MIN_ARGC (3)
+#define ARG_PATH (1)
+#define ARG_CONTENT (2)
+
 static void open_logs()
 {
     // Using default settings for the logging (name, etc.).
@@ -26,15 +30,15 @@ int main(int argc, char** argv)
 
     open_logs(); 
 
-    if (argc < 3)
+    if (argc < MIN_ARGC)
     {
         syslog(LOG_ERR, "usage: writer [output dir] [content]");
         rc = 1;
     }
     else
     {
-        filepath = argv[1];
-        content = argv[2];
+        filepath = argv[ARG_PATH];
+        content = argv[ARG_CONTENT];
 
         if (strlen(filepath) <= 0)
         {
@@ -42,7 +46,7 @@ int main(int argc, char** argv)
             rc = 1;
         }
 
-        if (strlen(content) <= 0)
+        if (rc == 0 && strlen(content) <= 0)
         {
             syslog(LOG_ERR, "Invalid filename argument");
             rc = 1;
@@ -58,6 +62,7 @@ int main(int argc, char** argv)
             else
             {
                 syslog(LOG_ERR, "Open failed: %m");
+                rc = 1;
             }
         }
     }
