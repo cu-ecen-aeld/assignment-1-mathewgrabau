@@ -26,7 +26,7 @@ int main(int argc, char** argv)
 
     open_logs(); 
 
-    if (argc < 2)
+    if (argc < 3)
     {
         syslog(LOG_ERR, "usage: writer [output dir] [content]");
         rc = 1;
