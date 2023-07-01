@@ -1,4 +1,10 @@
 #include "systemcalls.h"
+#include <limits.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/types.h>
+#include <unistd.h>
+#include <wait.h>
 
 /**
  * @param cmd the command to execute with system()
@@ -9,15 +15,27 @@
 */
 bool do_system(const char *cmd)
 {
+    int result;
+    result = system(cmd);
 
-/*
- * TODO  add your code here
- *  Call the system() function with the command set in the cmd
- *   and return a boolean true if the system() call completed with success
- *   or false() if it returned a failure
-*/
+    if (cmd == NULL)
+    {
+        return result == 0 ? true : false;
+    }
 
-    return true;
+    // If the command is not null, then the result of -1 means that there was an error while executing the command.
+    if (result == -1)
+    {
+        perror("system failed(): ");
+        return false;
+    }
+
+    if (WIFEXITED(result))
+    {
+        return WEXITSTATUS(result) == 0 ? true : false;
+    }
+
+    return false;
 }
 
 /**
@@ -39,29 +57,56 @@ bool do_exec(int count, ...)
     va_list args;
     va_start(args, count);
     char * command[count+1];
+
     int i;
+    int pid;
+    int status;
+
     for(i=0; i<count; i++)
     {
         command[i] = va_arg(args, char *);
     }
     command[count] = NULL;
-    // this line is to avoid a compile warning before your implementation is complete
-    // and may be removed
-    command[count] = command[count];
 
-/*
- * TODO:
- *   Execute a system command by calling fork, execv(),
- *   and wait instead of system (see LSP page 161).
- *   Use the command[0] as the full path to the command to execute
- *   (first argument to execv), and use the remaining arguments
- *   as second argument to the execv() command.
- *
-*/
+    // Only accept absolute paths.
+    if (strlen(command[0]) == 0 || command[0][0] != '/')
+    {
+        return false;
+    }
+
+    pid = fork();
+
+    if (pid == -1)
+    {
+        perror("fork() failed: ");
+        return false;
+    }
+    else if (pid == 0)
+    {
+        execv(command[0], command); //&command[1]);
+        perror("Child error: ");
+        return false;
+    }
+
+    if (waitpid(pid, &status, 0) == -1)
+    {
+        fprintf(stdout, "waitpid failed: %d\n", status);
+        return false;
+    }
+    else if (WIFEXITED(status))
+    {
+        fprintf(stdout, "Appears it worked? status = %d\n", status); 
+        return WEXITSTATUS(status) == 0 ? true : false;
+    }
+    else if (WIFSIGNALED(status))
+    {
+        fprintf(stdout, "Signalled: %d\n", WTERMSIG(status)); 
+        return false;
+    }
 
     va_end(args);
 
-    return true;
+    return false;
 }
 
 /**
