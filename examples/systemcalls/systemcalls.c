@@ -1,7 +1,9 @@
 #include "systemcalls.h"
+#include <fcntl.h>
 #include <limits.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
 #include <wait.h>
@@ -57,6 +59,7 @@ bool do_exec(int count, ...)
     va_list args;
     va_start(args, count);
     char * command[count+1];
+    bool result = true;
 
     int i;
     int pid;
@@ -71,42 +74,48 @@ bool do_exec(int count, ...)
     // Only accept absolute paths.
     if (strlen(command[0]) == 0 || command[0][0] != '/')
     {
-        return false;
+        result = false;
     }
+    else
+    {
+        fflush(stdout);
+        pid = fork();
 
-    pid = fork();
+        if (pid == -1)
+        {
+            perror("fork() failed: ");
+            result = false;
+        }
+        else if (pid == 0)
+        {
+            execv(command[0], command); //&command[1]);
+            perror("Child error: ");
+            result = false;
+        }
 
-    if (pid == -1)
-    {
-        perror("fork() failed: ");
-        return false;
-    }
-    else if (pid == 0)
-    {
-        execv(command[0], command); //&command[1]);
-        perror("Child error: ");
-        return false;
-    }
-
-    if (waitpid(pid, &status, 0) == -1)
-    {
-        fprintf(stdout, "waitpid failed: %d\n", status);
-        return false;
-    }
-    else if (WIFEXITED(status))
-    {
-        fprintf(stdout, "Appears it worked? status = %d\n", status); 
-        return WEXITSTATUS(status) == 0 ? true : false;
-    }
-    else if (WIFSIGNALED(status))
-    {
-        fprintf(stdout, "Signalled: %d\n", WTERMSIG(status)); 
-        return false;
+        if (result)
+        {
+            if (waitpid(pid, &status, 0) == -1)
+            {
+                fprintf(stderr, "waitpid failed: %d\n", status);
+                result = false;
+            }
+            else if (WIFEXITED(status))
+            {
+                fprintf(stdout, "Appears it worked? status = %d\n", status); 
+                result = WEXITSTATUS(status) == 0 ? true : false;
+            }
+            else if (WIFSIGNALED(status))
+            {
+                fprintf(stdout, "Signalled: %d\n", WTERMSIG(status)); 
+                result = false;
+            }
+        }
     }
 
     va_end(args);
 
-    return false;
+    return result;
 }
 
 /**
@@ -118,27 +127,86 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
 {
     va_list args;
     va_start(args, count);
-    char * command[count+1];
+    char * command[count + 1];
     int i;
+    int fd;
+    int pid;
+    int status;
+    bool result;
+
+    result = true;
+
     for(i=0; i<count; i++)
     {
         command[i] = va_arg(args, char *);
     }
-    command[count] = NULL;
-    // this line is to avoid a compile warning before your implementation is complete
-    // and may be removed
-    command[count] = command[count];
+    command[count] = (char*)NULL;
 
+    fd = open(outputfile, 
+            O_CREAT | O_WRONLY | O_TRUNC | O_CLOEXEC, 
+            S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+    if (fd == -1)
+    {
+        // Just keeping it neater with the earlier return here.
+        perror("open() failed: ");
+        va_end(args);
+        return false;
+    }
 
-/*
- * TODO
- *   Call execv, but first using https://stackoverflow.com/a/13784315/1446624 as a refernce,
- *   redirect standard out to a file specified by outputfile.
- *   The rest of the behaviour is same as do_exec()
- *
-*/
+    // Only accept absolute paths.
+    if (strlen(command[0]) == 0 || command[0][0] != '/')
+    {
+        result = false;
+    }
+    else
+    {
+        pid = fork();
+
+        if (pid == -1)
+        {
+            perror("fork() failed: ");
+            result = false;
+        }
+        else if (pid == 0)
+        {
+            if (dup2(fd, STDOUT_FILENO) < 0)
+            {
+                perror("dup2()");    
+                result = false;
+            }
+            else
+            {
+                execv(command[0], command);
+                perror("Child error: ");
+                result = false;
+            }
+        }
+        else
+        {
+            // Close the file in the parent
+            close(fd);
+            fd = 0;
+        }
+
+        if (result)
+        {
+            if (waitpid(pid, &status, 0) == -1)
+            {
+                perror("waitpid() failed: ");
+                result = false;
+            }
+            else if (WIFEXITED(status))
+            {
+                result = WEXITSTATUS(status) == 0 ? true : false;
+            }
+            else if (WIFSIGNALED(status))
+            {
+                result = false;
+            }
+        }
+    }
 
     va_end(args);
 
-    return true;
+    return result;
 }
