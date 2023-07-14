@@ -34,7 +34,11 @@ if [ ! -e ${OUTDIR}/linux-stable/arch/${ARCH}/boot/Image ]; then
     echo "Checking out version ${KERNEL_VERSION}"
     git checkout ${KERNEL_VERSION}
 
-    # TODO: Add your kernel build steps here
+    # Create the configuration
+    echo "CREATE defconfig"
+    make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} defconfig
+    echo "COMPILING all"
+    make -j4 ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} all
 fi
 
 echo "Adding the Image in outdir"
@@ -47,7 +51,24 @@ then
     sudo rm  -rf ${OUTDIR}/rootfs
 fi
 
-# TODO: Create necessary base directories
+mkdir ${OUTDIR}/rootfs
+cd ${OUTDIR}/rootfs
+mkdir bin
+mkdir dev
+mkdir etc
+mkdir home
+mkdir lib
+mkdir lib64
+mkdir proc
+mkdir sbin
+mkdir sys
+mkdir tmp
+mkdir -p usr
+mkdir -p usr/bin
+mkdir -p usr/lib
+mkdir -p usr/sbin
+mkdir -p var/log
+
 
 cd "$OUTDIR"
 if [ ! -d "${OUTDIR}/busybox" ]
@@ -55,26 +76,69 @@ then
 git clone git://busybox.net/busybox.git
     cd busybox
     git checkout ${BUSYBOX_VERSION}
-    # TODO:  Configure busybox
+
+    make distclean
+    make defconfig
 else
     cd busybox
 fi
 
-# TODO: Make and install busybox
+# Make and install busybox
+make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE}
+make CONFIG_PREFIX=${OUTDIR}/rootfs ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} install
+
+echo "busybox install completed"
+
+cd "${OUTDIR}/rootfs"
 
 echo "Library dependencies"
 ${CROSS_COMPILE}readelf -a bin/busybox | grep "program interpreter"
+# I determined this regex will extract the values, then we need to copy those dependencies
+# sed 's/.\+Shared library: \[\(lib\(\S\+\)\)\]/\1/'
 ${CROSS_COMPILE}readelf -a bin/busybox | grep "Shared library"
 
-# TODO: Add library dependencies to rootfs
+# Add library dependencies to rootfs
+SYSROOT=`${CROSS_COMPILE}gcc -print-sysroot`
 
-# TODO: Make device nodes
+LD_ARG="s/\s\+\[Requesting program interpreter: \(\/lib\/\(\S\|.\)*\)\]/\1/"
+LOADER=`${CROSS_COMPILE}readelf -a bin/busybox | grep "program interpreter" \
+    | sed 's/\s\+\[Requesting program interpreter: \(\/lib\/\(\S\|.\)*\)\]/\1/'`
 
+cp "${SYSROOT}/${LOADER}" "${OUTDIR}/rootfs/${LOADER}"
+#ls ${OUTDIR}/rootfs/${LOADER}
+
+cd "${SYSROOT}"
+${CROSS_COMPILE}readelf -a ${OUTDIR}/rootfs/bin/busybox | grep "Shared library" \
+    | sed 's/.\+Shared library: \[\(lib\(\S\+\)\)\]/lib64\/\1/' \
+    | xargs -t cp -t $OUTDIR/rootfs/lib64
+
+# Make device nodes
+cd "${OUTDIR}/rootfs"
+sudo mknod -m 666 dev/null c 1 3
+sudo mknod -m 666 dev/console c 5 1
+
+echo "Device nodes created"
+
+# TODO: maybe execute this one from the correct directory, instead of changing the directory.
 # TODO: Clean and build the writer utility
+cd "${FINDER_APP_DIR}"
+make clean
+make
 
-# TODO: Copy the finder related scripts and executables to the /home directory
-# on the target rootfs
+echo "writer utility clean and build completed"
 
-# TODO: Chown the root directory
+cp ${FINDER_APP_DIR}/writer ${OUTDIR}/rootfs/home
+cp ${FINDER_APP_DIR}/finder*.sh ${OUTDIR}/rootfs/home
+
+# Chown the root directory (so that root is the owner)
+cd ${OUTDIR}/rootfs
+sudo chown -R root:root *
+
+echo "Completed chown to root:root for ${OUTDIR}/rootfs"
 
 # TODO: Create initramfs.cpio.gz
+cd "${OUTDIR}/rootfs"
+find . | cpio -H newc -ov --owner root:root > ${OUTDIR}/initramfs.cpio
+echo "Created initramfs.cpio"
+
+
