@@ -39,12 +39,26 @@ if [ ! -e ${OUTDIR}/linux-stable/arch/${ARCH}/boot/Image ]; then
     make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} defconfig
     echo "COMPILING all"
     make -j4 ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} all
+
+    # This is where we would build the modules/devicetree
+    #make -j4 ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} modules
+    make -j4 ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} dtbs
 fi
 
-echo "Adding the Image in outdir"
+echo "Adding the Image in OUTDIR/Image"
+if [ ! -e ${OUTDIR}/linux-stable/vmlinux ]; then
+    echo "Kernel image ${OUTDIR}/linux-stable/vmlinux not found, exiting."
+    exit 1
+fi
+
+cp "${OUTDIR}/linux-stable/arch/${ARCH}/boot/Image.gz" "${OUTDIR}/Image"
+if [ ! -e ${OUTDIR}/Image ]; then
+    echo "Kernel image not not found, exiting."
+    exit 1
+fi
 
 echo "Creating the staging directory for the root filesystem"
-cd "$OUTDIR"
+cd "${OUTDIR}"
 if [ -d "${OUTDIR}/rootfs" ]
 then
 	echo "Deleting rootfs directory at ${OUTDIR}/rootfs and starting over"
@@ -105,7 +119,6 @@ LOADER=`${CROSS_COMPILE}readelf -a bin/busybox | grep "program interpreter" \
     | sed 's/\s\+\[Requesting program interpreter: \(\/lib\/\(\S\|.\)*\)\]/\1/'`
 
 cp "${SYSROOT}/${LOADER}" "${OUTDIR}/rootfs/${LOADER}"
-#ls ${OUTDIR}/rootfs/${LOADER}
 
 cd "${SYSROOT}"
 ${CROSS_COMPILE}readelf -a ${OUTDIR}/rootfs/bin/busybox | grep "Shared library" \
@@ -119,26 +132,28 @@ sudo mknod -m 666 dev/console c 5 1
 
 echo "Device nodes created"
 
-# TODO: maybe execute this one from the correct directory, instead of changing the directory.
-# TODO: Clean and build the writer utility
+# Clean and build the writer utility
 cd "${FINDER_APP_DIR}"
-make clean
-make
+make clean CROSS_COMPILE=${CROSS_COMPILE}
+make CROSS_COMPILE=${CROSS_COMPILE}
 
 echo "writer utility clean and build completed"
 
 cp ${FINDER_APP_DIR}/writer ${OUTDIR}/rootfs/home
 cp ${FINDER_APP_DIR}/finder*.sh ${OUTDIR}/rootfs/home
+cp ${FINDER_APP_DIR}/conf/username.txt ${OUTDIR}/rootfs/home/conf
+cp ${FINDER_APP_DIR}/autorun-qemu.sh ${OUTDIR}/rootfs/home
 
 # Chown the root directory (so that root is the owner)
-cd ${OUTDIR}/rootfs
+cd "${OUTDIR}/rootfs"
 sudo chown -R root:root *
 
 echo "Completed chown to root:root for ${OUTDIR}/rootfs"
 
-# TODO: Create initramfs.cpio.gz
+# Create initramfs.cpio.gz
 cd "${OUTDIR}/rootfs"
 find . | cpio -H newc -ov --owner root:root > ${OUTDIR}/initramfs.cpio
+gzip -f ${OUTDIR}/initramfs.cpio
 echo "Created initramfs.cpio"
 
 
