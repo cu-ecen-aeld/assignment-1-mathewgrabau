@@ -1,4 +1,4 @@
-#!/bin/bash
+/conf#!/bin/bash
 # Script outline to install and build kernel.
 # Author: Siddhant Jajoo.
 
@@ -139,14 +139,19 @@ make CROSS_COMPILE=${CROSS_COMPILE}
 
 echo "writer utility clean and build completed"
 
-cp ${FINDER_APP_DIR}/writer ${OUTDIR}/rootfs/home
-cp ${FINDER_APP_DIR}/finder*.sh ${OUTDIR}/rootfs/home
-cp ${FINDER_APP_DIR}/conf/username.txt ${OUTDIR}/rootfs/home/conf
+mkdir -p ${OUTDIR}/rootfs
+mkdir -p ${OUTDIR}/rootfs/home/conf
+
+cp ${FINDER_APP_DIR}/writer ${OUTDIR}/rootfs/home/
+cp ${FINDER_APP_DIR}/finder*.sh ${OUTDIR}/rootfs/home/
+cp ${FINDER_APP_DIR}/conf/username.txt ${OUTDIR}/rootfs/home/conf/
+cp ${FINDER_APP_DIR}/../conf/assignment.txt ${OUTDIR}/rootfs/home/conf/
+cp -R ${FINDER_APP_DIR}/../conf ${OUTDIR}/rootfs
 cp ${FINDER_APP_DIR}/autorun-qemu.sh ${OUTDIR}/rootfs/home
 
 # Chown the root directory (so that root is the owner)
 cd "${OUTDIR}/rootfs"
-sudo chown -R root:root *
+sudo chown -R root:root "${OUTDIR}/rootfs"
 
 echo "Completed chown to root:root for ${OUTDIR}/rootfs"
 

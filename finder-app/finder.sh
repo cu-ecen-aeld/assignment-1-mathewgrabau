@@ -1,4 +1,4 @@
-#!/usr/bin/sh
+#!/bin/sh
 
 # Script requirements: first argument is a path to a directory on the file system (filesdir).
 # The second script is for searching the files in the directory (searchstr)
