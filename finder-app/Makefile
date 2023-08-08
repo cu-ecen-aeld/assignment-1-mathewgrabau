@@ -2,6 +2,8 @@
 # Builds the writer program (defined in the writer.c source file)
 # Author: Mathew Grabau
 
+all: writer
+
 OUTPUT=writer
 
 ${OUTPUT}: *.o
