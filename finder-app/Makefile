@@ -6,12 +6,11 @@ all: writer
 
 OUTPUT=writer
 
-${OUTPUT}: *.o
-	${CROSS_COMPILE}gcc -o ${OUTPUT} ${OUTPUT}.o
+writer.o: writer.c
+	$(CC) $(CCFLAGS) $(INCLUDES) -c writer.c
 
-*.o: *.c
-	${CROSS_COMPILE}gcc -c *.c -o ${OUTPUT}.o
-		
+writer: writer.o
+	$(CC) $(LDFLAGS) -o writer
 
 clean:
 	rm -rf *.o ${OUTPUT}
