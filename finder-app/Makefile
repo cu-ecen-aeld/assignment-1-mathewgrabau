@@ -10,7 +10,7 @@ writer.o: writer.c
 	$(CC) $(CCFLAGS) $(INCLUDES) -c writer.c
 
 writer: writer.o
-	$(CC) $(LDFLAGS) -o writer
+	$(CC) $(LDFLAGS) -o writer writer.o
 
 clean:
 	rm -rf *.o ${OUTPUT}
