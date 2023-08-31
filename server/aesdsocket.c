@@ -9,11 +9,18 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <sys/syslog.h>
 #include <sys/types.h>
 #include <syslog.h>
 #include <time.h>
 #include <unistd.h>
 #include <wchar.h>
+
+#ifdef NDEBUG
+#define print_debug(fd, format, ...)
+#else
+#define print_debug(fd, format, ...) fprintf(fd, format, ##__VA_ARGS__)
+#endif
 
 /* Constants */
 #define TERMINATOR '\n'
@@ -26,7 +33,7 @@ static char error_string[ERROR_STRING_LEN + 1];
 int terminate = 0;
 
 void signal_handler(int signo) {
-  fprintf(stdout, "signal_handler invoked, signo = %d\n", signo);
+  print_debug(stdout, "signal_handler invoked, signo = %d\n", signo);
   terminate = 1;
 }
 
@@ -35,8 +42,14 @@ void register_signal_handlers() {
   sigemptyset(&current.sa_mask);
   current.sa_flags = 0;
   current.sa_handler = signal_handler;
-  sigaction(SIGTERM, &current, NULL);
-  sigaction(SIGINT, &current, NULL);
+  if (sigaction(SIGTERM, &current, NULL) == -1) {
+    perror("Error installing signal handler");
+    syslog(LOG_ERR, "Error installing the signal handler");
+  }
+  if (sigaction(SIGINT, &current, NULL) == -1) {
+    perror("Error installing signal handler");
+    syslog(LOG_ERR, "Error installing the signal handler");
+  }
 }
 
 /**
@@ -63,7 +76,6 @@ int main() {
   ssize_t socket_read_size;
   struct addrinfo hints, *my_addrinfo, *rp;
 
-  // TODO: modify this when we are creating the daemon version of the server.
   setup_syslog(LOG_USER);
 
   memset(&hints, 0, sizeof(struct addrinfo));
@@ -119,7 +131,7 @@ int main() {
     return -1;
   }
 
-  // register_signal_handlers();
+  register_signal_handlers();
 
   while (terminate == 0) {
     memset(address_buffer, 0, sizeof(address_buffer));
@@ -216,7 +228,6 @@ int main() {
   syslog(LOG_INFO, "Server cleaning up and shutting down");
 
   close(listen_socket);
-  freeaddrinfo(my_addrinfo);
 
   /* Cleanup the file */
   rc = remove("/var/tmp/aesdsocketdata");
