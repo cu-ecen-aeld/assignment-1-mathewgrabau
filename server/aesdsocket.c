@@ -188,6 +188,20 @@ int main() {
       while (i < socket_read_size && newline == 0) {
         if (client_data[i] == TERMINATOR) {
           fprintf(stdout, "Detected the newline character\n");
+
+          fd = open("/var/tmp/aesdsocketdata", O_CLOEXEC | O_RDONLY, S_IWUSR,
+                    S_IRUSR, S_IRGRP, S_IROTH);
+          if (fd >= 0) {
+
+            int num_read = read(fd, client_data, sizeof(client_data));
+            while (num_read > 0) {
+              send(connection_socket, client_data, num_read, 0);
+              num_read = read(fd, client_data, sizeof(client_data));
+            }
+
+            close(fd);
+          }
+
           close(connection_socket);
           connection_socket = 0;
           newline = 1;
