@@ -27,6 +27,8 @@
 #define CLIENT_BUFFER_SIZE 1024
 #define LISTEN_PORT 9000
 
+#define DEFAULT_OUTPUT_FILE "/var/tmp/aesdsocketdata"
+
 #define ERROR_STRING_LEN 80
 static char error_string[ERROR_STRING_LEN + 1];
 
@@ -219,8 +221,8 @@ int main() {
         if (client_data[i] == TERMINATOR) {
           fprintf(stdout, "Detected the newline character\n");
 
-          fd = open("/var/tmp/aesdsocketdata", O_CLOEXEC | O_RDONLY, S_IWUSR,
-                    S_IRUSR, S_IRGRP, S_IROTH);
+          fd = open(DEFAULT_OUTPUT_FILE, O_CLOEXEC | O_RDONLY, S_IWUSR, S_IRUSR,
+                    S_IRGRP, S_IROTH);
           if (fd >= 0) {
 
             int num_read = read(fd, client_data, sizeof(client_data));
@@ -248,7 +250,7 @@ int main() {
   close(listen_socket);
 
   /* Cleanup the file */
-  rc = remove("/var/tmp/aesdsocketdata");
+  rc = remove(DEFAULT_OUTPUT_FILE);
   if (rc < 0) {
     rc = errno;
     if (rc != ENOENT) {
