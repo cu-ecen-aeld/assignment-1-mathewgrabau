@@ -94,7 +94,15 @@ int main() {
     // Format the address
     inet_ntop(rp->ai_family, rp->ai_addr, address_buffer,
               sizeof(address_buffer));
-    fprintf(stdout, "addr: %s\n", address_buffer);
+    int server_port = 0;
+    if (rp->ai_family == AF_INET) {
+      server_port = ntohs(((struct sockaddr_in *)rp->ai_addr)->sin_port);
+    } else if (rp->ai_family == AF_INET6) {
+      server_port = ntohs(((struct sockaddr_in6 *)rp->ai_addr)->sin6_port);
+    }
+
+    print_debug(stdout, "server family: %d, %s:%d\n", rp->ai_family,
+                address_buffer, server_port);
 
     listen_socket = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
     if (listen_socket < 0) {
@@ -146,11 +154,21 @@ int main() {
       break;
     }
 
-    inet_ntop(addr_family, &client_addr, address_buffer,
+    inet_ntop(client_addr.sa_family, &client_addr, address_buffer,
               sizeof(address_buffer));
 
     /* I'm finding the address_buffer printout very questionable. */
     syslog(LOG_INFO, "Received connection from client: %s\n", address_buffer);
+    in_port_t port_number;
+    if (client_addr.sa_family == AF_INET) {
+      port_number = ((struct sockaddr_in *)&client_addr)->sin_port;
+    } else {
+      port_number = ((struct sockaddr_in6 *)&client_addr)->sin6_port;
+    }
+
+    port_number = ntohs(port_number);
+
+    syslog(LOG_INFO, "Client port is %d\n", port_number);
 
     /* Keep reading bytes until finding the terminal */
     while (newline == 0) {
