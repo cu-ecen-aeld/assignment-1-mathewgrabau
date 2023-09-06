@@ -59,27 +59,45 @@ void register_signal_handlers() {
  * @param log_facility - One of the values provided in syslog.h (intended to
  * support running as a daemon flexibly later).
  */
-void setup_syslog(int log_facility) {
+static void setup_syslog(int log_facility) {
   /* use the default (program name) to identify the logging */
   openlog(NULL, LOG_PID | LOG_PERROR, log_facility);
 }
 
-int main() {
-  struct sockaddr client_addr;
-  struct sockaddr_in server_address;
-  int listen_socket, connection_socket;
-  socklen_t client_addr_len;
-  int rc;
-  int i;
-  int fd;
-  int addr_family;
-  int newline = 0;
-  char client_data[CLIENT_BUFFER_SIZE];
-  char address_buffer[INET_ADDRSTRLEN + 1];
-  ssize_t socket_read_size;
-  struct addrinfo hints, *my_addrinfo, *rp;
+#define DAEMON_FLAG "-d"
 
-  setup_syslog(LOG_USER);
+/**
+ * Checks provided inputs for the flag indicating the server should run as a
+ * daemon process.
+ * @returns boolean indicator (0 for flag not found).
+ */
+static int check_for_daemon_flag(int argc, char **argv) {
+  char *current;
+  int found = 0;
+
+  for (int i = 1; i < argc; ++i) {
+    current = argv[i];
+    if (strncmp(DAEMON_FLAG, current, sizeof(DAEMON_FLAG)) == 0) {
+      found = 1;
+      break;
+    }
+  }
+
+  return found;
+}
+
+/**
+ *  Creates the socket (if possible) for server. Returns either the socket
+ * descriptor, or -1 if a call failed.
+ */
+static int bind_server_socket(void) {
+  struct addrinfo hints;
+  struct addrinfo *my_addrinfo;
+  struct addrinfo *rp;
+  int addr_family;
+  int listen_socket;
+  char address_buffer[INET6_ADDRSTRLEN];
+  int rc;
 
   memset(&hints, 0, sizeof(struct addrinfo));
   hints.ai_family = AF_INET;
@@ -140,6 +158,25 @@ int main() {
     freeaddrinfo(my_addrinfo);
     return -1;
   }
+
+  return listen_socket;
+}
+
+/**
+ * Function that runs the server.
+ * @returns Process return value.
+ */
+static int server_function(int listen_socket) {
+  struct sockaddr client_addr;
+  int connection_socket;
+  socklen_t client_addr_len;
+  int rc;
+  int i;
+  int fd;
+  int newline = 0;
+  char client_data[CLIENT_BUFFER_SIZE];
+  char address_buffer[INET_ADDRSTRLEN + 1];
+  ssize_t socket_read_size;
 
   register_signal_handlers();
 
@@ -258,6 +295,51 @@ int main() {
       syslog(LOG_ERR, "remove() failed: %s", error_string);
     }
   }
+
+  return rc;
+}
+
+int main(int argc, char **argv) {
+  int listen_socket;
+  pid_t pid;
+  int rc;
+
+  setup_syslog(LOG_USER);
+
+  // Create the server socket.
+  listen_socket = bind_server_socket();
+  if (listen_socket <= 0) {
+    return -1;
+  }
+
+  // Execute the fork to run the server
+  if (check_for_daemon_flag(argc, argv)) {
+    print_debug(stdout, "Launching as a daemon");
+    pid = fork();
+    if (pid < 0) {
+      perror("fork() failed");
+      syslog(LOG_ERR, "fork() failed");
+      return -1;
+    }
+
+    // Good result, can exit the parent process
+    if (pid > 0) {
+      return 0;
+    }
+
+    // Child process running now.
+    // Change directory
+    chdir("/");
+    setsid();
+    // Redirect stdio
+    freopen("/dev/null", "r", stdin);
+    freopen("/dev/null", "w", stdout);
+    freopen("/dev/null", "w", stderr);
+    setup_syslog(LOG_USER);
+  }
+
+  // Then run the server function
+  rc = server_function(listen_socket);
 
   return rc;
 }
