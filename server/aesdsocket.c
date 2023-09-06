@@ -34,6 +34,7 @@ int terminate = 0;
 
 void signal_handler(int signo) {
   print_debug(stdout, "signal_handler invoked, signo = %d\n", signo);
+  syslog(LOG_INFO, "Caught signal, exiting.");
   terminate = 1;
 }
 
@@ -100,7 +101,6 @@ int main() {
     } else if (rp->ai_family == AF_INET6) {
       server_port = ntohs(((struct sockaddr_in6 *)rp->ai_addr)->sin6_port);
     }
-
     print_debug(stdout, "server family: %d, %s:%d\n", rp->ai_family,
                 address_buffer, server_port);
 
