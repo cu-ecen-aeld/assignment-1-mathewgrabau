@@ -236,8 +236,7 @@ static int server_function(int listen_socket) {
       syslog(LOG_INFO, "Read %d bytes from connection_socket",
              (int)socket_read_size);
 
-      fd = open("/var/tmp/aesdsocketdata",
-                O_CLOEXEC | O_APPEND | O_RDWR | O_CREAT,
+      fd = open(DEFAULT_OUTPUT_FILE, O_CLOEXEC | O_APPEND | O_RDWR | O_CREAT,
                 S_IWUSR | S_IRUSR | S_IRGRP | S_IROTH);
       if (fd < 0) {
         strerror_r(errno, error_string, sizeof(error_string));
@@ -261,7 +260,6 @@ static int server_function(int listen_socket) {
           fd = open(DEFAULT_OUTPUT_FILE, O_CLOEXEC | O_RDONLY, S_IWUSR, S_IRUSR,
                     S_IRGRP, S_IROTH);
           if (fd >= 0) {
-
             int num_read = read(fd, client_data, sizeof(client_data));
             while (num_read > 0) {
               send(connection_socket, client_data, num_read, 0);
@@ -269,11 +267,15 @@ static int server_function(int listen_socket) {
             }
 
             close(fd);
+          } else {
+            strerror_r(errno, error_string, sizeof(error_string));
+            syslog(LOG_ERR, "open() failed: %s", error_string);
           }
 
           close(connection_socket);
           connection_socket = 0;
           newline = 1;
+          rc = 0;
         }
         ++i;
       }
@@ -294,6 +296,8 @@ static int server_function(int listen_socket) {
       strerror_r(rc, error_string, sizeof(error_string));
       syslog(LOG_ERR, "remove() failed: %s", error_string);
     }
+  } else {
+    rc = 0;
   }
 
   return rc;
@@ -335,7 +339,7 @@ int main(int argc, char **argv) {
     freopen("/dev/null", "r", stdin);
     freopen("/dev/null", "w", stdout);
     freopen("/dev/null", "w", stderr);
-    setup_syslog(LOG_USER);
+    setup_syslog(LOG_DAEMON);
   }
 
   // Then run the server function
