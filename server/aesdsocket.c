@@ -286,7 +286,11 @@ static int server_function(int listen_socket) {
 
   syslog(LOG_INFO, "Server cleaning up and shutting down");
 
-  close(listen_socket);
+  rc = close(listen_socket);
+  if (rc != 0) {
+    strerror_r(errno, error_string, sizeof(error_string));
+    syslog(LOG_ERR, "close(listen_socket) failed: %s", error_string);
+  }
 
   /* Cleanup the file */
   rc = remove(DEFAULT_OUTPUT_FILE);
