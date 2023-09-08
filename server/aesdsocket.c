@@ -298,6 +298,7 @@ static int server_function(int listen_socket) {
     syslog(LOG_ERR, "close(listen_socket) failed: %s", error_string);
     print_debug(stderr, "close(listen_socket) failed: %s\n", error_string);
   } else {
+    syslog(LOG_INFO, "close(listen_socket) worked - socket closed");
     print_debug(stdout, "closed the listen_socket\n");
   }
 
