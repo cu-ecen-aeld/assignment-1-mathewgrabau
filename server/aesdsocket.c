@@ -136,7 +136,7 @@ static int bind_server_socket(void) {
     rc = bind(listen_socket, my_addrinfo->ai_addr, my_addrinfo->ai_addrlen);
     if (rc != 0) {
       strerror_r(errno, error_string, sizeof(error_string));
-      syslog(LOG_ERR, "socket failed: %s", error_string);
+      syslog(LOG_ERR, "bind failed: %s", error_string);
       close(listen_socket);
       freeaddrinfo(my_addrinfo);
       return -1;
@@ -281,6 +281,10 @@ static int server_function(int listen_socket) {
       }
     }
 
+    if (connection_socket != 0) {
+      print_debug(stdout, "WARNING: did not remove connection_socket\n");
+    }
+
     newline = 0;
   }
 
@@ -290,6 +294,9 @@ static int server_function(int listen_socket) {
   if (rc != 0) {
     strerror_r(errno, error_string, sizeof(error_string));
     syslog(LOG_ERR, "close(listen_socket) failed: %s", error_string);
+    print_debug(stderr, "close(listen_socket) failed: %s\n", error_string);
+  } else {
+    print_debug(stdout, "closed the listen_socket\n");
   }
 
   /* Cleanup the file */
