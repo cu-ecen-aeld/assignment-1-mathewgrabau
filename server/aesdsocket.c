@@ -130,6 +130,8 @@ static int bind_server_socket(void) {
       syslog(LOG_ERR, "socket failed: %s", error_string);
       freeaddrinfo(my_addrinfo);
       return -1;
+    } else {
+      print_debug(stdout, "established listen_socket\n");
     }
 
     /* Bind the socket now that it's been created. */
@@ -350,7 +352,6 @@ int main(int argc, char **argv) {
     freopen("/dev/null", "r", stdin);
     freopen("/dev/null", "w", stdout);
     freopen("/dev/null", "w", stderr);
-    setup_syslog(LOG_DAEMON);
   }
 
   // Then run the server function
