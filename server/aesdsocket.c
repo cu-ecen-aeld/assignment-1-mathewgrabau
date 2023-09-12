@@ -1,7 +1,7 @@
 #include <arpa/inet.h>
-#include <asm-generic/errno-base.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <linux/errno.h>
 #include <netdb.h>
 #include <netinet/in.h>
 #include <signal.h>
@@ -131,7 +131,19 @@ static int bind_server_socket(void) {
       freeaddrinfo(my_addrinfo);
       return -1;
     } else {
-      print_debug(stdout, "established listen_socket\n");
+      print_debug(stdout, "established listen_socket %d\n", listen_socket);
+    }
+
+    // Mitigate in use problems
+    int yes = 1;
+    if (setsockopt(listen_socket, SOL_SOCKET, SO_REUSEADDR, &yes,
+                   sizeof(yes)) == -1) {
+      strerror_r(errno, error_string, sizeof(error_string));
+      syslog(LOG_ERR, "setsockopt failed: %s", error_string);
+      print_debug(LOG_ERR, "setsockopt failed: %s\n", error_string);
+      close(listen_socket);
+      freeaddrinfo(my_addrinfo);
+      return -1;
     }
 
     /* Bind the socket now that it's been created. */
@@ -290,6 +302,7 @@ static int server_function(int listen_socket) {
     newline = 0;
   }
 
+  print_debug(stdout, "Server cleaning up and shutting down\n");
   syslog(LOG_INFO, "Server cleaning up and shutting down");
 
   rc = close(listen_socket);
@@ -332,7 +345,8 @@ int main(int argc, char **argv) {
 
   // Execute the fork to run the server
   if (check_for_daemon_flag(argc, argv)) {
-    print_debug(stdout, "Launching as a daemon");
+    syslog(LOG_USER, "Launching as a daemon");
+    print_debug(stdout, "Launching as a daemon\n");
     pid = fork();
     if (pid < 0) {
       perror("fork() failed");
@@ -342,6 +356,8 @@ int main(int argc, char **argv) {
 
     // Good result, can exit the parent process
     if (pid > 0) {
+      print_debug(stdout, "Server launched the daemon with pid %d, exiting.",
+                  pid);
       return 0;
     }
 
@@ -357,6 +373,5 @@ int main(int argc, char **argv) {
 
   // Then run the server function
   rc = server_function(listen_socket);
-
   return rc;
 }
